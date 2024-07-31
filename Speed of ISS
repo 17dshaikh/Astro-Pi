@@ -1,0 +1,123 @@
+from orbit import ISS
+from datetime import datetime, timedelta
+from pathlib import Path
+from picamera import PiCamera
+import time
+import numpy as np
+from exif import Image as im
+import cv2
+import math
+from PIL import Image
+from pycoral.adapters import common
+from pycoral.adapters import classify
+from pycoral.utils.edgetpu import make_interpreter
+from pycoral.utils.dataset import read_label_file
+from logzero import logger, logfile
+import csv
+from statistics import mode
+
+try:
+    start_time = datetime.now()
+    now_time = datetime.now()
+    base_folder = Path(__file__).parent.resolve()
+    data_file = base_folder / "data.csv"
+    logfile(base_folder / "Galaxy.log")
+    with open(data_file, 'w', buffering=1, newline='') as f:
+        writer = csv.writer(f)
+        header = ["Time", "Speed"]
+        writer.writerow(header)
+    camera = PiCamera()
+    camera.resolution = (4056, 3040)
+    EarthDistance = []
+    Elevation = []
+    firsttime = []
+    secondtime = []
+    Location1Longitude = []
+    Location1Latitude = []
+    Location2Longitude = []
+    Location2Latitude = []
+    total = float(0)
+    imagespeed = []
+    logger.info("Program Started at " + str(start_time))
+except Exception as e:
+    logger.error(str(e))
+   
+def haversine(latitude1, longitude1, latitude2, longitude2):
+    try:
+        latitude1, longitude1, latitude2, longitude2 = map(math.radians, [latitude1, longitude1, latitude2, longitude2])
+        delta_latitude = latitude2 - latitude1
+        delta_longitude = longitude2 - longitude1
+        a = math.sin(delta_latitude / 2) ** 2 + math.cos(latitude1) * math.cos(latitude2) * math.sin(delta_longitude / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        R = 6371.0
+        distance = R * c
+        return distance
+    except Exception as e:
+        logger.error(str(e))
+
+def speed_calculation(Elevation, firsttime, secondtime, Latitude1, Longitude1, Latitude2, Longitude2):
+    try:
+        TimeDelta = secondtime - firsttime
+        EarthRadius = 6371
+        EarthMass = 5.972 * math.pow(10, 24)
+        GravitationConstant = 6.67 * math.pow(10, -11)
+        Elevation_Speed = (math.sqrt((GravitationConstant * EarthMass) / (EarthRadius * 1000 + Elevation * 1000)) / 1000)
+        GPS_Speed = ((EarthRadius + Elevation) * (haversine(Latitude1,Longitude1,Latitude2,Longitude2) / EarthRadius) / (TimeDelta.total_seconds()))
+        speed = (Elevation_Speed + GPS_Speed) / 2
+        return speed
+    except Exception as e:
+        logger.error(str(e))
+
+def capture(camera, image):
+    try:
+        now_time = datetime.now()
+        now_time = now_time.strftime('%Y:%m:%d %H:%M:%S')
+        camera.exif_tags['DateTime'] = now_time
+        camera.capture(image)
+    except Exception as e:
+        logger.error(str(e))
+
+def get_time(image):
+    try:
+        with open(image, 'rb') as image_file:
+            img = im(image_file)
+            time_str = img.get("DateTime")
+            time = datetime.strptime(time_str, '%Y:%m:%d %H:%M:%S')
+            return time
+    except Exception as e:
+        logger.error(str(e))
+
+def get_time_difference(image_1, image_2):
+    try:
+        time_1 = get_time(image_1)
+        time_2 = get_time(image_2)
+        time_difference = time_2 - time_1
+        return time_difference.total_seconds()
+    except Exception:
+        logger.error(str(e))
+
+def convert_to_cv(image_1, image_2):
+    try:
+        image_1_cv = cv2.imread(image_1, 0)
+        image_2_cv = cv2.imread(image_2, 0)
+        return image_1_cv, image_2_cv
+    except Exception as e:
+        logger.error(str(e))
+
+def calculate_features(image_1_cv, image_2_cv, feature_number):
+    try:
+        orb = cv2.ORB_create(nfeatures=feature_number)
+        keypoints_1, descriptors_1 = orb.detectAndCompute(image_1_cv, None)
+        keypoints_2, descriptors_2 = orb.detectAndCompute(image_2_cv, None)
+        return keypoints_1, keypoints_2, descriptors_1, descriptors_2
+    except Exception as e:
+        logger.error(str(e))
+
+def calculate_matches(descriptors_1, descriptors_2):
+    try:
+        brute_force = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = brute_force.match(descriptors_1, descriptors_2)
+        matches = sorted(matches, key=lambda x: x.distance)
+        return matches
+    except Exception as e:
+        logger.error(str(e))
