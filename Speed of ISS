@@ -121,3 +121,178 @@ def calculate_matches(descriptors_1, descriptors_2):
         return matches
     except Exception as e:
         logger.error(str(e))
+
+def find_matching_coordinates(keypoints_1, keypoints_2, matches):
+    try:
+        coordinates_1 = []
+        coordinates_2 = []
+        for match in matches:
+            image_1_idx = match.queryIdx
+            image_2_idx = match.trainIdx
+            (x1, y1) = keypoints_1[image_1_idx].pt
+            (x2, y2) = keypoints_2[image_2_idx].pt
+            coordinates_1.append((x1, y1))
+            coordinates_2.append((x2, y2))
+            return coordinates_1, coordinates_2
+    except Exception as e:
+        logger.error(str(e))
+
+def calculate_mean_distance(coordinates_1, coordinates_2):
+    try:
+        all_distances = 0
+        merged_coordinates = list(zip(coordinates_1, coordinates_2))
+        for coordinate in merged_coordinates:
+            x_difference = coordinate[0][0] - coordinate[1][0]
+            y_difference = coordinate[0][1] - coordinate[1][1]
+            distance = math.hypot(x_difference, y_difference)
+            all_distances = all_distances + distance
+            return all_distances / len(merged_coordinates)
+    except Exception as e:
+        logger.error(str(e))
+
+def calculate_speed_in_kmps(feature_distance, GSD, time_difference):
+    try:
+        distance = feature_distance * GSD / 100000
+        speed = distance / time_difference
+        return speed
+    except Exception as e:
+        logger.error(str(e))
+
+def calculate_speed(image_1, image_2):
+    try:
+        time_difference = get_time_difference(image_1, image_2)
+        image_1_cv, image_2_cv = convert_to_cv(image_1, image_2)
+        keypoints_1, keypoints_2, descriptors_1, descriptors_2 = calculate_features(image_1_cv, image_2_cv, 1000)
+        matches = calculate_matches(descriptors_1, descriptors_2)
+        coordinates_1, coordinates_2 = find_matching_coordinates(keypoints_1, keypoints_2, matches)
+        average_feature_distance = calculate_mean_distance(coordinates_1, coordinates_2)
+        speed = calculate_speed_in_kmps(average_feature_distance, 12648, time_difference)
+        return speed
+    except Exception as e:
+        logger.error(str(e))
+
+def round_to_sf(number, sf):
+    try:
+        exponent = sf - len(str(number).split('.')[0])
+        rounded_num = round(number * (10 ** exponent))
+        result = rounded_num / (10 ** exponent)
+        return result
+    except Exception as e:
+        logger.error(str(e))
+
+def cloudy(imagefilepath):
+    try:
+        base_folder = Path(__file__).parent.resolve()
+        model_file = str(base_folder) + "/Cloudy.tflite"
+        label_file = str(base_folder) + "/labels.txt"
+        interpreter = make_interpreter(f"{model_file}")
+        interpreter.allocate_tensors()
+        size = common.input_size(interpreter)
+        image = Image.open(imagefilepath).convert('RGB').resize(size, Image.LANCZOS)
+        common.set_input(interpreter, image)
+        interpreter.invoke()
+        classes = classify.get_classes(interpreter, top_k=1)
+        labels = read_label_file(label_file)
+        for c in classes:
+            return str(f'{labels.get(c.id, c.id)} {c.score:.5f}')
+    except Exception as e:
+        logger.error(str(e))
+
+try:
+    while now_time < (start_time + timedelta(minutes=3)):
+        firsttime.append(datetime.now())
+        Location = ISS.coordinates()
+        secondtime.append(datetime.now())
+        Location2 = ISS.coordinates()
+        Location1Latitude.append(Location.latitude.degrees)
+        Location1Longitude.append(Location.longitude.degrees)
+        Location2Latitude.append(Location2.latitude.degrees)
+        Location2Longitude.append(Location2.longitude.degrees)
+        Elevation.append(Location.elevation.km)
+        now_time = datetime.now()
+    logger.info("GPS data collection completed")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    for i in range(1, 41):
+        time.sleep(1)
+        capture(camera, str(base_folder) + '/image%s.jpg' % i)
+        logger.info("Image " + str(i) + " taken")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    camera.close()
+    logger.info("Camera has been closed")
+except Exception as e:
+    logger.error(e)
+
+try:
+    for i in range(0, len(Elevation)-1):
+        instantanous_speed = speed_calculation(Elevation[i], firsttime[i], secondtime[i],Location1Latitude[i],Location1Longitude[i],Location2Latitude[i],Location2Longitude[i])
+        data = [secondtime[i], instantanous_speed]
+        with open(data_file, 'a') as f:
+            writer = csv.writer(f)
+            writer.writerow(data)
+        total = total + instantanous_speed
+    gps_speed = total / len(Elevation)
+    logger.info("GPS Speed calculation completed")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    CloudyOrLandmass = []
+    total = float(0)
+    logger.info("Variables required for image speed calulation have been created")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    for i in range(0, 40):
+        total = total + calculate_speed(str(base_folder) + "image" + str(i) + ".jpg",
+                                        str(base_folder) + "image" + str(i+1) + ".jpg")
+    imagespeed = total / 40
+    logger.info("Image speed calculation is completed")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    for i in range(0, 40):
+        try:
+            classification = cloudy(str(base_folder) + "image" + str(i) + ".jpg")
+            if classification[0:8] == "Landmass":
+                CloudyOrLandmass.append("Landmass")
+            elif classification[0:6] == "Cloudy":
+                CloudyOrLandmass.append("Cloudy")
+            else:
+                CloudyOrLandmass.append("Cloudy")
+        except Exception as e:
+            logger.error(str(e))
+    logger.info("Image classification loop completed")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    test = mode(CloudyOrLandmass)
+    if test == "Landmass":
+        weights = [1, 0.9]
+    elif test == "Cloudy":
+        weights = [1, 0.09]
+    else:
+        weights = [1, 0.09]
+    speedlist = [gps_speed, imagespeed]
+    speed = np.average(speedlist, weights=weights)
+    speed = round_to_sf(speed, 5)
+    logger.info("ISS Speed calculation completed")
+except Exception as e:
+    logger.error(str(e))
+
+try:
+    file_path = str(base_folder) + "/result.txt"
+    with open(file_path, 'w') as file:
+        file.write(str(speed))
+    logger.info("ISS Speed text file has been written")
+    logger.info("Program finsihed at " + str(datetime.now()))
+except Exception as e:
+    logger.error(str(e))
