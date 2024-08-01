@@ -1,0 +1,133 @@
+from pathlib import Path  
+from csv import writer   
+from sense_hat import SenseHat 
+from datetime import datetime, timedelta 
+import time
+from orbit import ISS
+from logzero import logger, logfile
+import math 
+from random import randint 
+import os
+
+start_time = datetime.now()
+
+base_folder = Path(__file__).parent.resolve()
+
+data_file = base_folder / "data.csv"
+
+logfile(base_folder / "HHorizons.log")
+
+logger.info(start_time)
+
+sense = SenseHat()
+
+sense.show_message('Hello World')
+
+logger.info('Time Variables & Base Folders Created')
+
+V1_x = float(0)
+V2_x = float(0)
+A1_x = float(0)
+A2_x = float(0)
+Dis_x = float(0)
+
+V1_y = float(0)
+V2_y = float(0)
+A1_y = float(0)
+A2_y = float(0)
+Dis_y = float(0)
+
+V1_z = float(0)
+V2_z = float(0)
+A1_z = float(0)
+A2_z = float(0)
+Dis_z = float(0)
+
+acc = sense.get_accelerometer_raw()
+time1_2_x = time.time()
+time1_2_y = time1_2_x
+time1_2_z = time1_2_x
+
+A2_x = acc["x"]
+A2_y = acc["y"]
+A2_z = acc["z"]
+
+acc = sense.get_accelerometer_raw()
+time1_x = time.time()
+time1_y = time1_x
+time1_z = time1_x
+A1_x = acc["x"]
+A1_y = acc["y"]
+A1_z = acc["z"]
+
+def get_sense_data():
+
+    global V1_x
+    global V2_x
+    global A1_x
+    global A2_x
+    global Dis_x
+
+    global V1_y
+    global V2_y
+    global A1_y
+    global A2_y
+    global Dis_y
+
+    global V1_z
+    global V2_z
+    global A1_z
+    global A2_z
+    global Dis_z
+
+    global time1_x
+    global time1_y
+    global time1_z
+
+    global time1_2_x
+    global time1_2_y
+    global time1_2_z
+
+    try:
+        function_calltime = datetime.now()
+        logger.info(function_calltime)
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+
+    try:
+        sense_data = []
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+
+    # Appends to the list the datetime
+    try:
+        sense_data.append(function_calltime)
+        logger.info('Time Added - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+
+    try:
+        mag = sense.get_compass_raw()
+        logger.info('Mag Variable Created - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+    try:
+        sense_data.append(mag["x"])
+        logger.info('Mag X added - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+    try:
+        sense_data.append(mag["y"])
+        logger.info('Mag Y added - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+    try:
+        sense_data.append(mag["z"])
+        logger.info('Mag Z added - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
+    try:
+        sense_data.append(math.sqrt((pow(mag["y"], 2)) + (pow(mag["x"], 2)) + (pow(mag["z"], 2))))
+        logger.info('Mag Magnitude Calculated And Added - Function')
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__}: {e})')
